@@ -1,2 +1,6 @@
 bin
 obj
+wwwroot/uploads
+
+.config
+.vscode

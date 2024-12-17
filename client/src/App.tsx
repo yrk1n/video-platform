@@ -1,17 +1,12 @@
-
-
-import './App.css'
+import "./App.css";
+import Upload from "./Components/upload";
 
 function App() {
-
-
   return (
     <>
-      <div>
-       hello 
-      </div>
+      <Upload />
     </>
-  )
+  );
 }
 
-export default App
+export default App;
