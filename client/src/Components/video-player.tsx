@@ -8,6 +8,7 @@ interface VideoPlayerProps {
 interface VideoVersion {
   resolution: string;
   url: string;
+  isNative: boolean;
 }
 
 interface VideoVersionsResponse {
@@ -22,10 +23,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
   useEffect(() => {
     const fetchVideoVersions = async () => {
       try {
-        const versions = video.processedVersions.map((version) => ({
-          resolution: version,
-          url: `/processed/${video.fileName.split(".")[0]}/${version}.mp4`,
-        }));
+        const versions = video.processedVersions.map((version) => {
+          const isNative = version === "native";
+
+          const url = `/processed/${video.fileName.split(".")[0]}/${version}.mp4`;
+
+          // Debug logging
+          console.log("Constructing URL:", {
+            isNative,
+            fileName: video.fileName,
+            version,
+            finalUrl: url,
+          });
+
+          return {
+            resolution: isNative ? "native" : version,
+            url,
+            isNative,
+          };
+        });
+
         setVideoVersions({ versions });
         setCurrentResolution(versions[0].resolution);
       } catch (error) {

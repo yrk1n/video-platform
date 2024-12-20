@@ -12,15 +12,23 @@ const VideoList: React.FC<VideoListProps> = ({
   selectedVideo,
 }) => {
   const [videoList, setVideoList] = useState<VideoInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchVideos = async () => {
     try {
+      setError(null);
       const response = await axios.get<VideoInfo[]>(
         "http://localhost:5253/api/video/list",
       );
       setVideoList(response.data);
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setError(`Failed to fetch videos: ${message}`);
       console.error("Error fetching videos:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -33,6 +41,8 @@ const VideoList: React.FC<VideoListProps> = ({
   return (
     <div>
       <h2 className="text-xl font-bold mb-4">Uploaded Videos</h2>
+      {isLoading && <p className="text-gray-400">Loading videos...</p>}
+      {error && <p className="text-red-500">{error}</p>}
       <div className="space-y-4">
         {videoList.map((video, index) => (
           <div
