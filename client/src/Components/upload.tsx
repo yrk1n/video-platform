@@ -7,6 +7,7 @@ interface UploadProps {
 
 const Upload: React.FC<UploadProps> = ({ onFileUpload }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -20,16 +21,26 @@ const Upload: React.FC<UploadProps> = ({ onFileUpload }) => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-
+    setIsUploading(true);
     try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
       const response = await axios.post(
         "http://localhost:5253/api/video/upload",
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+          timeout: 600000,
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total!,
+            );
+            console.log(`Upload Progress: ${percentCompleted}%`);
           },
         },
       );
@@ -39,6 +50,8 @@ const Upload: React.FC<UploadProps> = ({ onFileUpload }) => {
     } catch (error) {
       console.error("Error uploading file:", error);
       alert("Failed to upload file.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -50,13 +63,14 @@ const Upload: React.FC<UploadProps> = ({ onFileUpload }) => {
           type="file"
           onChange={handleFileChange}
           className="mb-2"
-          accept="video/*"
+          accept="video/*, .mkv"
         />
         <button
           onClick={handleUpload}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          disabled={isUploading}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
         >
-          Upload
+          {isUploading ? "Uploading..." : "Upload"}
         </button>
       </div>
     </div>
