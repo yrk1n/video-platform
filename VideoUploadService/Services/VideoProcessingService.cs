@@ -1,5 +1,3 @@
-// Services/VideoProcessingService.cs
-using System.Linq.Expressions;
 using System.Threading.Channels;
 using FFMpegCore;
 
@@ -10,10 +8,15 @@ public class VideoProcessingService : BackgroundService
     private readonly Channel<VideoProcessingJob> _channel;
     private readonly string _processedFolder;
 
-    public VideoProcessingService()
+    private readonly ILogger<VideoProcessingService> _logger;
+    private readonly int _maxConcurrentProcessing;
+
+    public VideoProcessingService(ILogger<VideoProcessingService> logger)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _channel = Channel.CreateUnbounded<VideoProcessingJob>();
         _processedFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "processed");
+        _maxConcurrentProcessing = Math.Max(1, Environment.ProcessorCount - 1);
 
         if (!Directory.Exists(_processedFolder))
             Directory.CreateDirectory(_processedFolder);
@@ -28,10 +31,48 @@ public class VideoProcessingService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("Video processing service started");
+        using var semaphore = new SemaphoreSlim(_maxConcurrentProcessing);
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            var job = await _channel.Reader.ReadAsync(stoppingToken);
+            try
+            {
+                var job = await _channel.Reader.ReadAsync(stoppingToken);
+                await semaphore.WaitAsync(stoppingToken);
+
+                _ = ProcessedVideoWithRelease(job, semaphore).ContinueWith(t =>
+                {
+                    if (t.IsFaulted && t.Exception != null)
+                    {
+                        _logger.LogError(t.Exception, "Error processing video: {FileName}", job.FileName);
+                    }
+                    else if (t.IsCompleted)
+                    {
+                        _logger.LogInformation("Successfully processed video: {FileName}", job.FileName);
+                    }
+                }, TaskScheduler.Default);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Video processing service stopped");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in ExecuteAsync");
+            }
+        }
+    }
+
+    private async Task ProcessedVideoWithRelease(VideoProcessingJob job, SemaphoreSlim semaphore)
+    {
+        try
+        {
             await ProcessVideo(job);
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
@@ -39,34 +80,95 @@ public class VideoProcessingService : BackgroundService
     {
         try
         {
+            Console.WriteLine($"\nStarting video processing for {job.FileName}");
             var videoFolder = Path.Combine(_processedFolder, Path.GetFileNameWithoutExtension(job.FileName));
             Directory.CreateDirectory(videoFolder);
 
-            // Process 720p version
-            var output720p = Path.Combine(videoFolder, "720p.mp4");
-            await FFMpegArguments
-                .FromFileInput(job.OriginalFilePath)
-                .OutputToFile(output720p, true, options => options
-                    .WithVideoFilters(filterOptions => filterOptions
-                        .Scale(width: 1280, height: 720))
-                    .WithConstantRateFactor(23)
-                    .WithFastStart())
-                .ProcessAsynchronously();
+            // Copy original file
+            try
+            {
+                Console.WriteLine($"[{job.FileName}] Copying original file...");
+                var originalDestination = Path.Combine(videoFolder, "original" + Path.GetExtension(job.FileName));
+                File.Copy(job.OriginalFilePath, originalDestination, true);
+                Console.WriteLine($"[{job.FileName}] ✓ Original file copied");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed during original file copy: {ex.Message}");
+            }
 
-            // Process 480p version
-            var output480p = Path.Combine(videoFolder, "480p.mp4");
-            await FFMpegArguments
-                .FromFileInput(job.OriginalFilePath)
-                .OutputToFile(output480p, true, options => options
-                    .WithVideoFilters(filterOptions => filterOptions
-                        .Scale(width: 854, height: 480))
-                    .WithConstantRateFactor(23)
+            var inputPath = job.OriginalFilePath;
+            var nativeInputPath = job.OriginalFilePath;
+
+            // Convert MKV to MP4 if needed
+            if (Path.GetExtension(job.FileName).Equals(".mkv", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    Console.WriteLine($"[{job.FileName}] Converting MKV to MP4...");
+                    var mp4Path = Path.Combine(videoFolder, "source.mp4");
+                    await FFMpegArguments
+                        .FromFileInput(inputPath)
+                        .OutputToFile(mp4Path, true, options => options
+                            .WithCustomArgument("-c copy"))
+                        .ProcessAsynchronously(true);
+
+                    inputPath = mp4Path;
+                    Console.WriteLine($"[{job.FileName}] ✓ MKV conversion completed");
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed during MKV conversion: {ex.Message}");
+                }
+            }
+
+            // Process native resolution version
+            try
+            {
+                Console.WriteLine($"[{job.FileName}] Processing native resolution version...");
+                var outputNative = Path.Combine(videoFolder, "native.mp4");
+                await FFMpegArguments
+                    .FromFileInput(nativeInputPath)
+                    .OutputToFile(outputNative, true, options => options
+                        .WithCustomArgument("-c copy")
                         .WithFastStart())
-                        .ProcessAsynchronously();
+                    .ProcessAsynchronously(true);
+                Console.WriteLine($"[{job.FileName}] ✓ Native resolution version completed");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed during native version processing: {ex.Message}");
+            }
+            //TODO:optimize and add back later 
+            // Process 720p version
+            // try
+            // {
+            //     Console.WriteLine($"[{job.FileName}] Processing 720p version...");
+            //     var output720p = Path.Combine(videoFolder, "720p.mp4");
+            //     await FFMpegArguments
+            //         .FromFileInput(inputPath)
+            //         .OutputToFile(output720p, true, options => options
+            //             .WithVideoFilters(filterOptions => filterOptions
+            //                 .Scale(width: 1280, height: 720))
+            //             .WithConstantRateFactor(23)
+            //             .WithFastStart())
+            //         .ProcessAsynchronously(true);
+            //     Console.WriteLine($"[{job.FileName}] ✓ 720p version completed");
+            // }
+            // catch (Exception ex)
+            // {
+            //     throw new Exception($"Failed during 720p version processing: {ex.Message}");
+            // }
+
+
+
+
+            Console.WriteLine($"[{job.FileName}] ✓ All processing completed successfully!\n");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing video: {ex.Message}");
+            Console.WriteLine($"[{job.FileName}] ❌ Error: {ex.Message}");
+            throw; // Re-throw to ensure the error is properly handled by ProcessedVideoWithRelease
         }
     }
 }

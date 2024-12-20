@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.FileProviders;
 using VideoUploadService.Services;
 
@@ -8,6 +10,25 @@ builder.Services.AddControllers();
 
 builder.Services.AddSingleton<VideoProcessingService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<VideoProcessingService>());
+
+builder.Services.AddLogging(logging =>
+{
+    logging.AddConsole();
+    logging.AddDebug();
+});
+
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = int.MaxValue; // or a specific size like 1073741824 for 1GB
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = int.MaxValue; // same as above
+    options.ValueLengthLimit = int.MaxValue;
+});
+
+// ... existing code ...
 
 builder.Services.Configure<HostOptions>(options =>
 {

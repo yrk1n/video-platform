@@ -48,6 +48,7 @@ public class VideoController : ControllerBase
     {
         var baseFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "processed");
         var videoFolder = Path.Combine(baseFolder, Path.GetFileNameWithoutExtension(fileName));
+        var fileExtension = Path.GetExtension(fileName);
 
         if (!Directory.Exists(videoFolder))
             return NotFound();
@@ -57,9 +58,11 @@ public class VideoController : ControllerBase
             FileName = fileName,
             Versions = new[]
             {
-                new { Resolution = "720p", Url = $"/processed/{Path.GetFileNameWithoutExtension(fileName)}/720p.mp4" },
-                new { Resolution = "480p", Url = $"/processed/{Path.GetFileNameWithoutExtension(fileName)}/480p.mp4" }
+                new { Resolution = "720p", Url = $"/processed/{Path.GetFileNameWithoutExtension(fileName)}/720p.{fileExtension}" },
+
+                new { Resolution = "native", Url = $"/processed/{Path.GetFileNameWithoutExtension(fileName)}/native.{fileExtension}" }
             }
+
         };
 
         return Ok(versions);
@@ -79,22 +82,37 @@ public class VideoController : ControllerBase
         {
             var processedPath = Path.Combine(processedFolder, Path.GetFileNameWithoutExtension(file));
             var versions = new List<string>();
+            var fileExtension = ".mp4";
 
             if (Directory.Exists(processedPath))
             {
-                if (System.IO.File.Exists(Path.Combine(processedPath, "720p.mp4")))
-                    versions.Add("720p");
-                if (System.IO.File.Exists(Path.Combine(processedPath, "480p.mp4")))
-                    versions.Add("480p");
-            }
+                var hasNative = System.IO.File.Exists(Path.Combine(processedPath, "native" + fileExtension));
 
-            videos.Add(new
+                var has720p = System.IO.File.Exists(Path.Combine(processedPath, "720p" + fileExtension));
+
+                if (hasNative) versions.Add("native");
+                if (has720p) versions.Add("720p");
+
+                var isProcessingComplete = hasNative || has720p;
+
+                videos.Add(new
+                {
+                    fileName = file,
+                    originalUrl = $"/uploads/{file}",
+                    processedVersions = versions,
+                    isProcessing = !isProcessingComplete
+                });
+            }
+            else
             {
-                fileName = file,
-                originalUrl = $"/uploads/{file}",
-                processedVersions = versions,
-                isProcessing = versions.Count == 0
-            });
+                videos.Add(new
+                {
+                    fileName = file,
+                    originalUrl = $"/uploads/{file}",
+                    processedVersions = new List<string>(),
+                    isProcessing = true
+                });
+            }
         }
 
         return Ok(videos);
