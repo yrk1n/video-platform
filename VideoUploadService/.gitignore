@@ -2,6 +2,7 @@ bin
 obj
 wwwroot/uploads
 wwwroot/processed
+wwwroot/metadata.json
 
 .config
 .vscode

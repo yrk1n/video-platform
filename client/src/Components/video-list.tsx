@@ -51,7 +51,10 @@ const VideoList: React.FC<VideoListProps> = ({
               ${selectedVideo?.fileName === video.fileName ? "bg-slate-700 border-blue-500" : "hover:bg-slate-600"}`}
             onClick={() => !video.isProcessing && onVideoSelect(video)}
           >
-            <h3 className="font-medium">{video.fileName}</h3>
+            <h3 className="font-medium">{video.name || video.fileName}</h3>
+            {video.genre && (
+              <p className="text-sm text-gray-400">Genre: {video.genre}</p>
+            )}
             <div className="mt-2">
               {video.isProcessing ? (
                 <span className="text-yellow-600">Processing...</span>

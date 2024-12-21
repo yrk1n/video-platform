@@ -1,7 +1,9 @@
 interface VideoInfo {
   fileName: string;
-  processedVersions: string[];
+  name?: string;
+  genre?: string;
   isProcessing: boolean;
+  processedVersions: string[];
 }
 
 export default VideoInfo;

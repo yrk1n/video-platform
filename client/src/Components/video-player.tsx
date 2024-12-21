@@ -77,7 +77,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
 
   return (
     <div className="bg-slate-700 rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-bold mb-4">Now Playing: {video.fileName}</h2>
+      <h2 className="text-xl font-bold mb-4">Now Playing: {video.name}</h2>
       <div className="w-full max-w-3xl mx-auto">
         <video
           id="videoPlayer"
