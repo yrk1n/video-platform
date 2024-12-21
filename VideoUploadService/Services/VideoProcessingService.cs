@@ -141,24 +141,24 @@ public class VideoProcessingService : BackgroundService
             }
             //TODO:optimize and add back later 
             // Process 720p version
-            // try
-            // {
-            //     Console.WriteLine($"[{job.FileName}] Processing 720p version...");
-            //     var output720p = Path.Combine(videoFolder, "720p.mp4");
-            //     await FFMpegArguments
-            //         .FromFileInput(inputPath)
-            //         .OutputToFile(output720p, true, options => options
-            //             .WithVideoFilters(filterOptions => filterOptions
-            //                 .Scale(width: 1280, height: 720))
-            //             .WithConstantRateFactor(23)
-            //             .WithFastStart())
-            //         .ProcessAsynchronously(true);
-            //     Console.WriteLine($"[{job.FileName}] ✓ 720p version completed");
-            // }
-            // catch (Exception ex)
-            // {
-            //     throw new Exception($"Failed during 720p version processing: {ex.Message}");
-            // }
+            try
+            {
+                Console.WriteLine($"[{job.FileName}] Processing 720p version...");
+                var output720p = Path.Combine(videoFolder, "720p.mp4");
+                await FFMpegArguments
+                    .FromFileInput(inputPath)
+                    .OutputToFile(output720p, true, options => options
+                        .WithVideoFilters(filterOptions => filterOptions
+                            .Scale(width: 1280, height: 720))
+                        .WithConstantRateFactor(23)
+                        .WithFastStart())
+                    .ProcessAsynchronously(true);
+                Console.WriteLine($"[{job.FileName}] ✓ 720p version completed");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed during 720p version processing: {ex.Message}");
+            }
 
 
 
